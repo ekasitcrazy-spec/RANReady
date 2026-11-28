@@ -619,7 +619,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     <button type="button" class="ran-period-btn" data-period="month" onclick="ranSetPeriod('month')">เดือนนี้</button>
                     <select id="ran-period-month" aria-label="เลือกเดือน" onchange="ranSetPeriod('custom')"><option value="">เลือกเดือน</option></select>
                     <select id="ran-period-year" aria-label="เลือกปี" onchange="ranSetPeriod('custom')"><option value="">เลือกปี</option></select>
-                    <button type="button" class="ran-period-btn ran-period-add" onclick="ranRefreshFinance()"><i class="fa-solid fa-rotate"></i> รีเฟรช</button>
+                    <button id="ran-finance-refresh" type="button" class="ran-period-btn ran-period-add" onclick="ranRefreshFinance()"><i class="fa-solid fa-rotate"></i> รีเฟรช</button>
                   </div>
                 </div>
                 <div class="ran-period-summary hidden" id="ran-period-summary">
@@ -1326,6 +1326,14 @@ select option{background:#101a30!important;color:#edf5ff!important}
             localStorage.setItem('ran99_split_bundles', JSON.stringify(splitBundles));
         }
 
+        // Refresh every finance view that is present on the current page.
+        // The new Dashboard no longer contains several legacy KPI nodes, so all updates are optional.
+        function refreshFinanceDisplays() {
+            if (typeof renderAll === 'function') renderAll();
+            if (typeof window.srvRender === 'function') window.srvRender();
+            if (typeof window.ranUpdatePeriodStats === 'function') window.ranUpdatePeriodStats();
+        }
+
         async function postSheetAction(payload) {
             return await callSheetApi({ ...payload, token: authToken });
         }
@@ -1347,7 +1355,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
             const collection = type === 'income' ? incomes : expenses;
             collection.push(transaction);
             saveData();
-            renderAll();
+            refreshFinanceDisplays();
 
             try {
                 await postSheetAction({
@@ -1357,7 +1365,8 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     date: transaction.date,
                     item: transaction.name,
                     amount: transaction.amount,
-                    createdBy: transaction.createdBy
+                    createdBy: transaction.createdBy,
+                    serverId: transaction.serverId
                 });
             } catch (error) {
                 console.error('บันทึกข้อมูลไม่สำเร็จ:', error);
@@ -1366,107 +1375,141 @@ select option{background:#101a30!important;color:#edf5ff!important}
             return transaction;
         }
 
-        async function loadTransactions() {
-            try {
-                const url = new URL(SHEET_API_URL);
-                url.searchParams.set('token', authToken);
-                const response = await fetch(url.toString());
-                if (!response.ok) throw new Error(`Google Sheets ตอบกลับสถานะ ${response.status}`);
-                const responseText = await response.text();
-                let data;
+        let transactionLoadPromise = null;
+
+        async function loadTransactions(options = {}) {
+            const silent = Boolean(options && options.silent);
+            if (transactionLoadPromise) return transactionLoadPromise;
+
+            transactionLoadPromise = (async () => {
                 try {
-                    data = JSON.parse(responseText);
-                } catch {
-                    throw new Error(responseText.trim().slice(0, 250) || 'Google Sheets ส่งข้อมูลที่อ่านไม่ออก');
-                }
-                if (!Array.isArray(data)) {
-                    throw new Error(data && data.error ? data.error : 'ข้อมูลจาก Google Sheets ไม่อยู่ในรูปแบบรายการ');
-                }
-                const validRows = data.filter(row => row && (
-                    String(row.id == null ? '' : row.id).trim() ||
-                    String(row.type == null ? '' : row.type).trim() ||
-                    String(row.date == null ? '' : row.date).trim() ||
-                    String(row.item == null ? '' : row.item).trim()
-                ));
+                    const url = new URL(SHEET_API_URL);
+                    url.searchParams.set('token', authToken);
+                    // Avoid a stale browser cache when users log in or press Refresh.
+                    const response = await fetch(url.toString(), { cache: 'no-store' });
+                    if (!response.ok) throw new Error(`Google Sheets ตอบกลับสถานะ ${response.status}`);
 
-                if ((incomes.length || expenses.length) && !localStorage.getItem(transactionStorageKey('sheet_local_backup'))) {
-                    localStorage.setItem(transactionStorageKey('sheet_local_backup'), JSON.stringify({
-                        savedAt: new Date().toISOString(),
-                        incomes,
-                        expenses
-                    }));
-                }
-
-                const loadedIncomes = [];
-                const loadedExpenses = [];
-                const sheetIds = new Set();
-                validRows.forEach(row => {
-                    if (row.type !== 'income' && row.type !== 'expense') {
-                        throw new Error('พบรายการที่ไม่มีประเภท income หรือ expense');
+                    const responseText = await response.text();
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch {
+                        throw new Error(responseText.trim().slice(0, 250) || 'Google Sheets ส่งข้อมูลที่อ่านไม่ออก');
                     }
-                    const transaction = {
-                        id: row.id == null ? '' : String(row.id),
-                        date: row.date ? String(row.date).split('T')[0] : '',
-                        name: String(row.item == null ? '' : row.item),
-                        amount: Number(row.amount) || 0,
-                        createdBy: String(row.createdBy == null ? '' : row.createdBy)
-                    };
-                    if (transaction.id) sheetIds.add(transaction.id);
-                    const collection = row.type === 'income' ? loadedIncomes : loadedExpenses;
-                    const options = row.type === 'income' ? incomeOptions : expenseOptions;
-                    collection.push(transaction);
-                    if (transaction.name && !options.includes(transaction.name)) options.push(transaction.name);
-                });
-
-                let migratedCount = 0;
-                const localTransactions = [
-                    ...incomes.map(transaction => ({ type: 'income', transaction })),
-                    ...expenses.map(transaction => ({ type: 'expense', transaction }))
-                ];
-                localTransactions.forEach(({ transaction }) => {
-                    if (!transaction.id) {
-                        transaction.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                    if (!Array.isArray(data)) {
+                        throw new Error(data && data.error ? data.error : 'ข้อมูลจาก Google Sheets ไม่อยู่ในรูปแบบรายการ');
                     }
-                });
-                saveData();
 
-                for (const { type, transaction } of localTransactions) {
-                    const id = String(transaction.id);
-                    if (sheetIds.has(id)) continue;
+                    const validRows = data.filter(row => row && (
+                        String(row.id == null ? '' : row.id).trim() ||
+                        String(row.type == null ? '' : row.type).trim() ||
+                        String(row.date == null ? '' : row.date).trim() ||
+                        String(row.item == null ? '' : row.item).trim()
+                    ));
 
-                    await postSheetAction({
-                        action: 'add',
-                        source: 'local_migration',
-                        id,
-                        type,
-                        date: transaction.date,
-                        item: transaction.name,
-                        amount: Number(transaction.amount),
-                        createdBy: transaction.createdBy || currentUser
+                    if ((incomes.length || expenses.length) && !localStorage.getItem(transactionStorageKey('sheet_local_backup'))) {
+                        localStorage.setItem(transactionStorageKey('sheet_local_backup'), JSON.stringify({
+                            savedAt: new Date().toISOString(),
+                            incomes,
+                            expenses
+                        }));
+                    }
+
+                    // serverId is retained locally for older Sheets deployments that do not return it.
+                    const knownServerIds = new Map(
+                        [...incomes, ...expenses]
+                            .filter(t => t && t.id && t.serverId)
+                            .map(t => [String(t.id), t.serverId])
+                    );
+                    const loadedIncomes = [];
+                    const loadedExpenses = [];
+                    const sheetIds = new Set();
+
+                    validRows.forEach(row => {
+                        if (row.type !== 'income' && row.type !== 'expense') {
+                            throw new Error('พบรายการที่ไม่มีประเภท income หรือ expense');
+                        }
+                        const id = row.id == null ? '' : String(row.id);
+                        const transaction = {
+                            id,
+                            date: row.date ? String(row.date).split('T')[0] : '',
+                            name: String(row.item == null ? '' : row.item),
+                            amount: Number(row.amount) || 0,
+                            createdBy: String(row.createdBy == null ? '' : row.createdBy),
+                            serverId: row.serverId || row.server_id || knownServerIds.get(id) || null
+                        };
+                        if (transaction.id) sheetIds.add(transaction.id);
+                        const collection = row.type === 'income' ? loadedIncomes : loadedExpenses;
+                        const optionsList = row.type === 'income' ? incomeOptions : expenseOptions;
+                        collection.push(transaction);
+                        if (transaction.name && !optionsList.includes(transaction.name)) optionsList.push(transaction.name);
                     });
-                    sheetIds.add(id);
-                    const collection = type === 'income' ? loadedIncomes : loadedExpenses;
-                    collection.push({
-                        ...transaction,
-                        id,
-                        date: transaction.date ? String(transaction.date).split('T')[0] : '',
-                        name: String(transaction.name == null ? '' : transaction.name),
-                        amount: Number(transaction.amount) || 0
-                    });
-                    migratedCount++;
-                }
 
-                incomes = loadedIncomes;
-                expenses = loadedExpenses;
-                updateDatalists();
-                saveData();
-                renderAll();
-                if (migratedCount) {
-                    alert(`ส่งคำขอย้ายรายการเดิมไป Google Sheets แล้ว ${migratedCount} รายการ แต่ Apps Script แบบนี้ไม่ส่งผลยืนยันกลับมาที่หน้าเว็บ กรุณาตรวจแถวในชีต`);
+                    let migratedCount = 0;
+                    const localTransactions = [
+                        ...incomes.map(transaction => ({ type: 'income', transaction })),
+                        ...expenses.map(transaction => ({ type: 'expense', transaction }))
+                    ];
+                    localTransactions.forEach(({ transaction }) => {
+                        if (!transaction.id) {
+                            transaction.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                        }
+                    });
+                    saveData();
+
+                    for (const { type, transaction } of localTransactions) {
+                        const id = String(transaction.id);
+                        if (sheetIds.has(id)) continue;
+
+                        await postSheetAction({
+                            action: 'add',
+                            source: 'local_migration',
+                            id,
+                            type,
+                            date: transaction.date,
+                            item: transaction.name,
+                            amount: Number(transaction.amount),
+                            createdBy: transaction.createdBy || currentUser,
+                            serverId: transaction.serverId || null
+                        });
+                        sheetIds.add(id);
+                        const collection = type === 'income' ? loadedIncomes : loadedExpenses;
+                        collection.push({
+                            ...transaction,
+                            id,
+                            date: transaction.date ? String(transaction.date).split('T')[0] : '',
+                            name: String(transaction.name == null ? '' : transaction.name),
+                            amount: Number(transaction.amount) || 0,
+                            serverId: transaction.serverId || null
+                        });
+                        migratedCount++;
+                    }
+
+                    incomes = loadedIncomes;
+                    expenses = loadedExpenses;
+                    updateDatalists();
+                    saveData();
+                    refreshFinanceDisplays();
+
+                    if (migratedCount && !silent) {
+                        alert(`ส่งคำขอย้ายรายการเดิมไป Google Sheets แล้ว ${migratedCount} รายการ แต่ Apps Script แบบนี้ไม่ส่งผลยืนยันกลับมาที่หน้าเว็บ กรุณาตรวจแถวในชีต`);
+                    }
+                    return true;
+                } catch (error) {
+                    console.error('ดึงข้อมูลไม่สำเร็จ:', error);
+                    // Do not discard the local copy when the Sheets request fails.
+                    try { refreshFinanceDisplays(); } catch (renderError) { console.error('แสดงข้อมูลสำรองไม่สำเร็จ:', renderError); }
+                    if (!silent) {
+                        alert(`โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ: ${error.message} ขณะนี้จะแสดงข้อมูลที่บันทึกไว้ในเครื่อง`);
+                    }
+                    return false;
                 }
-            } catch (error) {
-                console.error('ดึงข้อมูลไม่สำเร็จ:', error);
-                alert(`โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ: ${error.message} ขณะนี้จะแสดงข้อมูลที่บันทึกไว้ในเครื่อง`);
+            })();
+
+            try {
+                return await transactionLoadPromise;
+            } finally {
+                transactionLoadPromise = null;
             }
         }
 
@@ -1640,8 +1683,29 @@ select option{background:#101a30!important;color:#edf5ff!important}
             return `${year}-${month}-${day}`;
         }
 
+        function syncDefaultDateFields(force = false) {
+            const today = getLocalDateString();
+            ['inc-date', 'exp-date', 'hoard_date'].forEach(id => {
+                const input = document.getElementById(id);
+                if (!input) return;
+                const current = String(input.value || '').trim();
+                const previousAutoDate = input.dataset.autoDate || '';
+                const shouldUpdate = force || !current || (previousAutoDate && current === previousAutoDate);
+                if (!shouldUpdate) return; // Keep a date the user deliberately selected.
+                if (input._flatpickr) input._flatpickr.setDate(today, false, 'Y-m-d');
+                else input.value = today;
+                input.dataset.autoDate = today;
+            });
+        }
+
         function initDatePickers() {
-            flatpickr(".date-input", { locale: "th", dateFormat: "Y-m-d", allowInput: true });
+            if (typeof flatpickr !== 'function') return;
+            const thaiLocale = flatpickr.l10ns && flatpickr.l10ns.th ? flatpickr.l10ns.th : 'default';
+            document.querySelectorAll('.date-input').forEach(input => {
+                // Do not attach Flatpickr twice to inputs that survived a re-render.
+                if (input._flatpickr) return;
+                flatpickr(input, { locale: thaiLocale, dateFormat: 'Y-m-d', allowInput: true });
+            });
         }
 
         async function initializeApp() {
@@ -1652,10 +1716,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
             initChart();
             renderAll();
             
-            const today = getLocalDateString();
-            document.getElementById('inc-date').value = today;
-            document.getElementById('exp-date').value = today;
-            document.getElementById('hoard_date').value = today; 
+            syncDefaultDateFields(true);
 
             if(document.getElementById('alloy_title') && dynamicCraftsData.alloy.title) document.getElementById('alloy_title').value = dynamicCraftsData.alloy.title;
             if(document.getElementById('egg_title') && dynamicCraftsData.egg.title) document.getElementById('egg_title').value = dynamicCraftsData.egg.title;
@@ -1669,8 +1730,10 @@ select option{background:#101a30!important;color:#edf5ff!important}
 
             runAllCalculations();
             initDatePickers();
-            renderHoard(); 
+            renderHoard();
+            syncDefaultDateFields();
             await loadTransactions();
+            startFinanceAutoSync();
         }
 
         window.addEventListener('load', () => {
@@ -1714,6 +1777,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
         function formatMoney(amount) { return parseFloat(amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
         function addIncome() {
+            syncDefaultDateFields();
             const date = document.getElementById('inc-date').value, name = document.getElementById('inc-name').value.trim(), amount = parseFloat(document.getElementById('inc-amount').value);
             if (!date || !name || !(amount > 0)) {
                 alert('กรุณากรอกวันที่ รายการ และจำนวนเงินให้ครบถ้วน');
@@ -1738,10 +1802,11 @@ select option{background:#101a30!important;color:#edf5ff!important}
             }
             incomes.splice(index, 1);
             saveData();
-            renderAll();
+            refreshFinanceDisplays();
         }
 
         function addExpense() {
+            syncDefaultDateFields();
             const date = document.getElementById('exp-date').value, name = document.getElementById('exp-name').value.trim(), amount = parseFloat(document.getElementById('exp-amount').value);
             if (!date || !name || !(amount > 0)) {
                 alert('กรุณากรอกวันที่ รายการ และจำนวนเงินให้ครบถ้วน');
@@ -1766,7 +1831,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
             }
             expenses.splice(index, 1);
             saveData();
-            renderAll();
+            refreshFinanceDisplays();
         }
 
         async function updateRecord(type, index, field, value) {
@@ -1780,7 +1845,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
             if (!transaction.id) {
                 Object.assign(transaction, replacement);
                 saveData();
-                renderAll();
+                refreshFinanceDisplays();
                 return;
             }
 
@@ -1791,7 +1856,8 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     type,
                     date: replacement.date,
                     item: replacement.name,
-                    amount: replacement.amount
+                    amount: replacement.amount,
+                    serverId: replacement.serverId || null
                 });
             } catch (error) {
                 console.error('อัปเดตข้อมูลไม่สำเร็จ:', error);
@@ -1801,7 +1867,7 @@ select option{background:#101a30!important;color:#edf5ff!important}
 
             Object.assign(transaction, replacement);
             saveData();
-            renderAll();
+            refreshFinanceDisplays();
         }
 
         function resetFilter() {
@@ -1822,7 +1888,9 @@ select option{background:#101a30!important;color:#edf5ff!important}
                 return true;
             };
 
-            const incBody = document.getElementById('income-tbody'); incBody.innerHTML = '';
+            const incBody = document.getElementById('income-tbody');
+            if (!incBody) return;
+            incBody.innerHTML = '';
             let totalIncome = 0; let incomeMap = {}; let incomeSummary = {};
             let displayCount = 0; let incomeTxCount = 0; 
 
@@ -1854,7 +1922,9 @@ select option{background:#101a30!important;color:#edf5ff!important}
                 }
             });
 
-            const expBody = document.getElementById('expense-tbody'); expBody.innerHTML = '';
+            const expBody = document.getElementById('expense-tbody');
+            if (!expBody) return;
+            expBody.innerHTML = '';
             let totalExpense = 0; let expenseSummary = {}; let expenseTxCount = 0;
 
             expenses.forEach((item, index) => {
@@ -1912,30 +1982,37 @@ select option{background:#101a30!important;color:#edf5ff!important}
                 });
             }
 
-            document.getElementById('summary-income-count').innerText = incomeTxCount;
-            document.getElementById('summary-expense-count').innerText = expenseTxCount;
+            const setTextIfPresent = (id, value) => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = value;
+                return element;
+            };
+            setTextIfPresent('summary-income-count', incomeTxCount);
+            setTextIfPresent('summary-expense-count', expenseTxCount);
 
             const profit = totalIncome - totalExpense;
-            document.getElementById('kpi-income').innerText = formatMoney(totalIncome) + ' ฿';
-            document.getElementById('kpi-expense').innerText = formatMoney(totalExpense) + ' ฿';
-            const kpiProfit = document.getElementById('kpi-profit');
-            kpiProfit.innerText = formatMoney(profit) + ' ฿';
-            kpiProfit.className = profit >= 0 ? "text-4xl font-bold text-emerald-500" : "text-4xl font-bold text-red-600";
+            setTextIfPresent('kpi-income', formatMoney(totalIncome) + ' ฿');
+            setTextIfPresent('kpi-expense', formatMoney(totalExpense) + ' ฿');
+            const kpiProfit = setTextIfPresent('kpi-profit', formatMoney(profit) + ' ฿');
+            if (kpiProfit) kpiProfit.className = profit >= 0 ? "text-4xl font-bold text-emerald-500" : "text-4xl font-bold text-red-600";
 
-            document.getElementById('stat-total-items').innerText = displayCount;
+            setTextIfPresent('stat-total-items', displayCount);
             let topItem = '-'; let maxAmt = 0;
             for(const [name, amt] of Object.entries(incomeMap)) { if(amt > maxAmt) { maxAmt = amt; topItem = name; } }
-            document.getElementById('stat-top-item').innerText = topItem;
+            setTextIfPresent('stat-top-item', topItem);
 
-            const statLiq = document.getElementById('stat-liquidity');
-            statLiq.innerText = profit >= 0 ? 'กำไร (+)' : 'ขาดทุน (-)';
-            statLiq.className = profit >= 0 ? 'font-bold text-green-600' : 'font-bold text-red-600';
+            const statLiq = setTextIfPresent('stat-liquidity', profit >= 0 ? 'กำไร (+)' : 'ขาดทุน (-)');
+            if (statLiq) statLiq.className = profit >= 0 ? 'font-bold text-green-600' : 'font-bold text-red-600';
             
             updateChart(expenseSummary);
         }
 
         function initChart() {
-            const ctx = document.getElementById('expenseChart').getContext('2d');
+            if (myChart) return;
+            const canvas = document.getElementById('expenseChart');
+            if (!canvas || typeof Chart !== 'function') return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
             myChart = new Chart(ctx, {
                 type: 'doughnut', data: { labels: [], datasets: [{ data: [], backgroundColor: colorPalette, borderWidth: 0, hoverOffset: 4 }] },
                 options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'right', labels: { font: { family: 'Prompt', size: 12 }, usePointStyle: true, padding: 15 } } } }
@@ -2468,7 +2545,7 @@ function financeView(view, toolId){
 }
 function showFinanceDashboard(){window.activeServerFinanceId=null;financeView('dashboard');renderAll();srvRender();document.getElementById('section-dashboard').scrollIntoView({behavior:'smooth',block:'start'});}
 function showServerFinanceHome(){window.activeServerFinanceId=null;financeView('servers');document.getElementById('srv-detail').classList.add('hidden');document.getElementById('srv-server-list').classList.remove('hidden');srvRender();renderAll();document.getElementById('section-server-finance').scrollIntoView({behavior:'smooth',block:'start'});}
-function srvOpen(id){window.activeServerFinanceId=id;const s=srvData.find(x=>x.id===id);if(!s)return;financeView('entry');document.querySelectorAll('#server-nav-list a[data-server-id]').forEach(a=>a.classList.toggle('ran-server-active',a.dataset.serverId===String(id)));const banner=document.getElementById('server-finance-context');banner.textContent='กำลังบันทึกข้อมูลของเซิร์ฟ: '+s.name+' — รายรับ/รายจ่ายด้านล่างจะแยกเฉพาะเซิร์ฟนี้';renderAll();document.getElementById('income-panel').scrollIntoView({behavior:'smooth',block:'start'});}
+function srvOpen(id){window.activeServerFinanceId=id;const s=srvData.find(x=>x.id===id);if(!s)return;if(typeof syncDefaultDateFields==='function')syncDefaultDateFields();financeView('entry');document.querySelectorAll('#server-nav-list a[data-server-id]').forEach(a=>a.classList.toggle('ran-server-active',a.dataset.serverId===String(id)));const banner=document.getElementById('server-finance-context');banner.textContent='กำลังบันทึกข้อมูลของเซิร์ฟ: '+s.name+' — รายรับ/รายจ่ายด้านล่างจะแยกเฉพาะเซิร์ฟนี้';renderAll();document.getElementById('income-panel').scrollIntoView({behavior:'smooth',block:'start'});}
 function srvDelete(id){let s=srvData.find(x=>x.id===id);if(s&&confirm('ลบชื่อเซิร์ฟเวอร์ '+s.name+' หรือไม่? รายการที่บันทึกไว้จะยังอยู่ในข้อมูลเดิม แต่จะไม่ถูกจัดเข้าภาพรวมเซิร์ฟอีก')){srvData=srvData.filter(x=>x.id!==id);if(window.activeServerFinanceId===id)window.activeServerFinanceId=null;srvSave()}}
 function srvRender(){let nav=document.getElementById('server-nav-list');if(nav)nav.innerHTML=srvData.map(s=>`<a data-server-id="${s.id}" onclick="srvOpen('${s.id}');return false" href="#section-dashboard" class="flex items-center gap-3 text-slate-300 hover:bg-slate-700 p-2 rounded text-sm"><i class="fa-solid fa-server w-5 text-center text-sky-300"></i><span class="sidebar-text truncate">${s.name}</span></a>`).join('');
 let cards=document.getElementById('srv-server-list');if(cards)cards.innerHTML=srvData.length?srvData.map(s=>{let t=srvCalc(s);return `<div class="rounded-xl border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm"><div class="flex justify-between"><div><b class="text-slate-800">${s.name}</b><div class="text-xs text-slate-400">${srvTransactions(s).incomes.length+srvTransactions(s).expenses.length} รายการ</div></div><button onclick="srvDelete('${s.id}')" class="text-slate-300 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-3 gap-2 mt-3 text-xs"><div><span class="text-slate-400">รายรับ</span><b class="block text-emerald-600">${srvFmt(t.income)}</b></div><div><span class="text-slate-400">รายจ่าย</span><b class="block text-rose-500">${srvFmt(t.expense)}</b></div><div><span class="text-slate-400">สุทธิ</span><b class="block ${t.profit>=0?'text-sky-700':'text-rose-600'}">${srvFmt(t.profit)}</b></div></div><button onclick="srvOpen('${s.id}')" class="mt-3 w-full rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm p-2">ใช้เซิร์ฟนี้ในช่องข้อมูลรายรับ/รายจ่าย</button></div>`}).join(''):'<div class="text-sm text-slate-400">ยังไม่มีเซิร์ฟเวอร์ เพิ่มชื่อด้านบนเพื่อเริ่มต้น</div>';
@@ -2482,6 +2559,7 @@ window.showServerFinanceHome=showServerFinanceHome;
 window.srvOpen=srvOpen;
 window.srvAddServer=srvAddServer;
 window.srvDelete=srvDelete;
+window.srvRender=srvRender;
 window.ranShowToolPage=function(id){financeView('tool',id);};
 (function bindRANSidebarRouter(){
  const nav=document.querySelector('#sidebar nav');
@@ -2513,14 +2591,52 @@ srvRender();financeView('dashboard');
 window.__ranDashboardPeriod='none';
 function ranTogglePeriodTools(){const bar=document.getElementById('ran-period-toolbar');if(bar)bar.classList.toggle('ran-period-collapsed');}
 function ranSetPeriod(period){window.__ranDashboardPeriod=period;const toolbar=document.getElementById('ran-period-toolbar');if(toolbar)toolbar.classList.remove('ran-period-collapsed');document.querySelectorAll('#section-dashboard .ran-period-btn[data-period]').forEach(b=>b.classList.toggle('active',b.dataset.period===period));const box=document.getElementById('ran-period-summary');if(box){box.classList.toggle('hidden',period==='none');box.classList.toggle('ran-period-collapsed',period==='none');}ranUpdatePeriodStats();}
-function ranRefreshFinance(){try{if(typeof loadData==='function')loadData();if(typeof loadTransactions==='function')loadTransactions();if(typeof renderAll==='function')renderAll();if(typeof srvRender==='function')srvRender();ranUpdatePeriodStats();}catch(e){console.warn('Refresh issue',e);}}
+let ranFinanceRefreshBusy = false;
+async function ranRefreshFinance(){
+ if(ranFinanceRefreshBusy)return;
+ ranFinanceRefreshBusy=true;
+ const button=document.getElementById('ran-finance-refresh');
+ const originalHtml=button?button.innerHTML:'';
+ try{
+   if(button){button.disabled=true;button.innerHTML='<i class="fa-solid fa-rotate fa-spin"></i> กำลังรีเฟรช...';}
+   const loaded=await loadTransactions({silent:true});
+   if(!loaded)throw new Error('เชื่อมต่อ Google Sheets ไม่สำเร็จ กรุณาลองอีกครั้ง');
+   refreshFinanceDisplays();
+   if(button)button.title='อัปเดตล่าสุด '+new Date().toLocaleString('th-TH');
+ }catch(e){console.error('Refresh issue',e);alert('รีเฟรชข้อมูลไม่สำเร็จ: '+e.message);}
+ finally{if(button){button.disabled=false;button.innerHTML=originalHtml;}ranFinanceRefreshBusy=false;}
+}
+
+let financeAutoSyncTimer=null;
+function startFinanceAutoSync(){
+ if(financeAutoSyncTimer)clearInterval(financeAutoSyncTimer);
+ financeAutoSyncTimer=setInterval(()=>{
+   if(!authToken || document.visibilityState==='hidden')return;
+   const active=document.activeElement;
+   if(active && (active.matches('input,textarea,select') || active.isContentEditable))return;
+   loadTransactions({silent:true});
+ },60000);
+}
+
+function syncFinanceOnReturn(){
+ if(!authToken)return;
+ syncDefaultDateFields();
+ if(document.visibilityState==='hidden')return;
+ const active=document.activeElement;
+ if(active && (active.matches('input,textarea,select') || active.isContentEditable))return;
+ loadTransactions({silent:true});
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncFinanceOnReturn();});
+window.addEventListener('focus',syncFinanceOnReturn);
+window.ranRefreshFinance=ranRefreshFinance;
+window.ranUpdatePeriodStats=ranUpdatePeriodStats;
 function ranUpdatePeriodStats(){
  const msel=document.getElementById('ran-period-month'),ysel=document.getElementById('ran-period-year');if(!msel||!ysel)return;
  const now=new Date();if(msel.options.length<=1){['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'].forEach((m,i)=>msel.add(new Option(m,String(i+1).padStart(2,'0'))));}
  if(ysel.options.length<=1){const years=new Set([now.getFullYear()]);const tx=(typeof incomes!=='undefined'?incomes:[]).concat(typeof expenses!=='undefined'?expenses:[]);tx.forEach(t=>{const y=Number(String(t.date||'').slice(0,4));if(y>=2000&&y<=2200)years.add(y)});[...years].sort((a,b)=>b-a).forEach(y=>ysel.add(new Option(y,String(y))));}
  const mode=window.__ranDashboardPeriod,month=msel.value,year=ysel.value;let caption='เลือกช่วงเวลาเพื่อดูสรุป';if(mode==='today')caption='สรุปเฉพาะวันนี้';else if(mode==='month')caption='สรุปเฉพาะเดือนนี้';else if(mode==='custom'&&month&&year)caption=`สรุปเดือน ${msel.options[msel.selectedIndex].text} ปี ${year}`;else if(mode==='custom'&&year)caption=`สรุปทั้งปี ${year}`;else if(mode==='custom'&&month)caption='กรุณาเลือกปีเพื่อสรุปรายเดือน';document.getElementById('ran-period-caption').textContent=caption;
  const incomeList=(typeof incomes!=='undefined'?incomes:[]),expenseList=(typeof expenses!=='undefined'?expenses:[]);
- const today=now.toLocaleDateString('en-CA');function match(t){const d=String(t.date||'');if(mode==='none')return false;if(mode==='all')return true;if(mode==='today')return d===today;if(mode==='month')return d.slice(0,7)===today.slice(0,7);if(mode==='custom'){if(year&&d.slice(0,4)!==year)return false;if(month&&d.slice(5,7)!==month)return false;return Boolean(year||month);}return false;}
+ const today=typeof getLocalDateString==='function'?getLocalDateString(now):now.toISOString().slice(0,10);function match(t){const d=String(t.date||'');if(mode==='none')return false;if(mode==='all')return true;if(mode==='today')return d===today;if(mode==='month')return d.slice(0,7)===today.slice(0,7);if(mode==='custom'){if(year&&d.slice(0,4)!==year)return false;if(month&&d.slice(5,7)!==month)return false;return Boolean(year||month);}return false;}
  const inc=incomeList.filter(match).reduce((sum,t)=>sum+Number(t.amount||0),0),exp=expenseList.filter(match).reduce((sum,t)=>sum+Number(t.amount||0),0),net=inc-exp;const fmt=n=>typeof srvFmt==='function'?srvFmt(n):n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' ฿';
  document.getElementById('ran-period-income').textContent=fmt(inc);document.getElementById('ran-period-expense').textContent=fmt(exp);const netEl=document.getElementById('ran-period-profit');netEl.textContent=fmt(net);netEl.style.color=net>=0?'#35bfff':'#ff78b9';
 }
