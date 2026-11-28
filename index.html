@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        .finance-period-button{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:700;transition:.15s}
+        .finance-period-button:hover{background:#e0f2fe;border-color:#7dd3fc;color:#075985}
+        .finance-period-button.is-active{background:#0b78c9;border-color:#0b78c9;color:#fff;box-shadow:0 3px 10px rgba(2,132,199,.18)}
+        #finance-record-manager input:focus,#finance-record-manager select:focus{outline:none;border-color:#0284c7;box-shadow:0 0 0 3px rgba(2,132,199,.12)}
         body { font-family: 'Prompt', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -643,7 +647,42 @@ select option{background:#101a30!important;color:#edf5ff!important}
             </div>
             <section id="section-server-finance" class="xl:col-span-3 rounded-2xl border border-sky-100 bg-white shadow-md overflow-hidden scroll-mt-20"><div class="bg-gradient-to-r from-blue-700 to-sky-400 text-white p-4 flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-bold text-lg"><i class="fa-solid fa-server mr-2"></i>เพิ่มแต่ละเซิร์ฟ</h2><p class="text-xs text-blue-100">สร้างบัญชีการเงินแยกสำหรับแต่ละเซิร์ฟ</p></div><div class="flex gap-2"><input id="srv-new-name" placeholder="ชื่อเซิร์ฟ เช่น Inter" class="rounded-lg px-3 py-2 text-sm text-slate-800"><button onclick="srvAddServer()" class="rounded-lg bg-white text-blue-700 font-bold px-3 py-2 text-sm"><i class="fa-solid fa-plus mr-1"></i>เพิ่ม</button></div></div><div id="srv-server-list" class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div><div id="srv-detail" class="hidden border-t border-sky-100"></div></section>
 
-            <div id="server-finance-context" class="hidden xl:col-span-3 rounded-xl bg-sky-100 border border-sky-200 text-sky-900 p-3 text-sm font-semibold"></div>
+            <div id="server-finance-context" class="hidden xl:col-span-3 rounded-xl bg-sky-100 border border-sky-200 text-sky-900 p-3 text-sm">
+                <div id="server-finance-banner" class="font-semibold mb-3"></div>
+                <div id="finance-record-manager" class="rounded-xl border border-sky-200 bg-white p-3 sm:p-4 text-slate-800 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div>
+                            <div class="font-bold text-slate-800"><i class="fa-solid fa-filter text-sky-600 mr-1"></i> ค้นหาและจัดการประวัติ</div>
+                            <div class="text-xs text-slate-500 mt-1">เลือกดูข้อมูลทั้งหมด หรือกรองตามวัน เดือน ปี และช่วงวันที่</div>
+                        </div>
+                        <button type="button" onclick="resetFinanceRecordFilters()" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">ล้างตัวกรอง</button>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3" id="finance-period-buttons">
+                        <button type="button" data-finance-period="all" onclick="setFinanceRecordPeriod('all')" class="finance-period-button is-active">ทั้งหมด</button>
+                        <button type="button" data-finance-period="today" onclick="setFinanceRecordPeriod('today')" class="finance-period-button">วันนี้</button>
+                        <button type="button" data-finance-period="7days" onclick="setFinanceRecordPeriod('7days')" class="finance-period-button">7 วันล่าสุด</button>
+                        <button type="button" data-finance-period="month" onclick="setFinanceRecordPeriod('month')" class="finance-period-button">เดือนนี้</button>
+                        <button type="button" data-finance-period="year" onclick="setFinanceRecordPeriod('year')" class="finance-period-button">ปีนี้</button>
+                        <button type="button" data-finance-period="custom" onclick="setFinanceRecordPeriod('custom')" class="finance-period-button">กำหนดช่วงเอง</button>
+                    </div>
+                    <div id="finance-custom-date-fields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                        <label class="text-xs font-semibold text-slate-600">ตั้งแต่วันที่<input id="finance-filter-start" type="date" onchange="setFinanceRecordDate('start', this.value)" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-800"></label>
+                        <label class="text-xs font-semibold text-slate-600">ถึงวันที่<input id="finance-filter-end" type="date" onchange="setFinanceRecordDate('end', this.value)" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-800"></label>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input id="finance-filter-search" type="search" oninput="setFinanceRecordSearch(this.value)" placeholder="ค้นหาชื่อรายการ เช่น ค่าคูณ, ขายเอ็ม" class="min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+                        <span id="finance-filter-result-count" class="text-xs font-semibold text-slate-500">แสดงข้อมูลทั้งหมด</span>
+                    </div>
+                    <div id="finance-bulk-delete-tools" class="hidden mt-3 border-t border-slate-200 pt-3">
+                        <div class="text-xs font-semibold text-rose-700 mb-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i> เครื่องมือลบข้อมูล (เฉพาะแอดมิน) — จะลบเฉพาะรายการที่ตรงกับตัวกรองด้านบน</div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" onclick="deleteVisibleFinanceRecords('income')" class="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700"><i class="fa-solid fa-trash mr-1"></i>ลบรายรับที่แสดง</button>
+                            <button type="button" onclick="deleteVisibleFinanceRecords('expense')" class="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700"><i class="fa-solid fa-trash mr-1"></i>ลบรายจ่ายที่แสดง</button>
+                        </div>
+                        <div class="mt-2 text-[11px] text-slate-500">ระบบจะแสดงจำนวนรายการและยอดรวมเพื่อยืนยันก่อนลบ และบันทึกประวัติลง AuditLog</div>
+                    </div>
+                </div>
+            </div>
             <div id="income-panel" class="hidden bg-white rounded shadow-md flex flex-col h-[450px]">
                 <div class="bg-[#1e3a8a] text-white p-2 px-4 font-bold text-sm rounded-t flex justify-between items-center">
                     <span>ข้อมูลรายรับ (INCOME)</span>
@@ -660,9 +699,10 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     <table class="w-full text-sm text-left table-fixed">
                         <thead class="bg-gray-100 text-gray-600 sticky top-0 shadow-sm z-10">
                             <tr>
-                                <th class="px-4 py-2 w-[30%]">วันที่</th>
-                                <th class="px-4 py-2 w-[40%]">รายการ</th>
-                                <th class="px-4 py-2 w-[20%] text-right">จำนวนเงิน</th>
+                                <th class="px-4 py-2 w-[20%]">วันที่</th>
+                                <th class="px-4 py-2 w-[30%]">รายการ</th>
+                                <th class="px-4 py-2 w-[15%] text-right">จำนวนเงิน</th>
+                                <th class="px-4 py-2 w-[25%]">เซิร์ฟเวอร์</th>
                                 <th class="px-4 py-2 w-[10%] text-center">ลบ</th>
                             </tr>
                         </thead>
@@ -687,9 +727,10 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     <table class="w-full text-sm text-left table-fixed">
                         <thead class="bg-gray-100 text-gray-600 sticky top-0 shadow-sm z-10">
                             <tr>
-                                <th class="px-4 py-2 w-[30%]">วันที่</th>
-                                <th class="px-4 py-2 w-[40%]">รายการ</th>
-                                <th class="px-4 py-2 w-[20%] text-right">จำนวนเงิน</th>
+                                <th class="px-4 py-2 w-[20%]">วันที่</th>
+                                <th class="px-4 py-2 w-[30%]">รายการ</th>
+                                <th class="px-4 py-2 w-[15%] text-right">จำนวนเงิน</th>
+                                <th class="px-4 py-2 w-[25%]">เซิร์ฟเวอร์</th>
                                 <th class="px-4 py-2 w-[10%] text-center">ลบ</th>
                             </tr>
                         </thead>
@@ -1339,6 +1380,10 @@ select option{background:#101a30!important;color:#edf5ff!important}
         }
 
         async function addTransaction(type, date, name, amount) {
+            if (window.__ranViewingUnassigned) {
+                alert('ขณะนี้กำลังตรวจรายการเก่าที่ยังไม่ระบุเซิร์ฟ กรุณาเลือกเซิร์ฟเวอร์ก่อนเพิ่มรายการใหม่');
+                return null;
+            }
             if (!date || !name || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
                 alert('กรุณากรอกวันที่ รายการ และจำนวนเงินให้ถูกต้อง');
                 return null;
@@ -1515,7 +1560,9 @@ select option{background:#101a30!important;color:#edf5ff!important}
 
         function setupRoleNavigation() {
             const auditLink = document.getElementById('audit-nav-link');
-            auditLink.classList.toggle('hidden', currentRole !== 'admin');
+            if (auditLink) auditLink.classList.toggle('hidden', currentRole !== 'admin');
+            const bulkTools = document.getElementById('finance-bulk-delete-tools');
+            if (bulkTools) bulkTools.classList.toggle('hidden', currentRole !== 'admin');
         }
 
         async function openAuditLog() {
@@ -1857,7 +1904,8 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     date: replacement.date,
                     item: replacement.name,
                     amount: replacement.amount,
-                    serverId: replacement.serverId || null
+                    createdBy: replacement.createdBy || currentUser,
+                    serverId: replacement.serverId || ''
                 });
             } catch (error) {
                 console.error('อัปเดตข้อมูลไม่สำเร็จ:', error);
@@ -1870,23 +1918,179 @@ select option{background:#101a30!important;color:#edf5ff!important}
             refreshFinanceDisplays();
         }
 
-        function resetFilter() {
-            document.getElementById('filter-start')._flatpickr.clear();
-            document.getElementById('filter-end')._flatpickr.clear();
+        window.__financeRecordFilter = window.__financeRecordFilter || { mode: 'all', start: '', end: '', query: '' };
+        window.__ranViewingUnassigned = Boolean(window.__ranViewingUnassigned);
+
+        function escapeFinanceHtml(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+
+        function setFinanceRecordPeriod(mode) {
+            const filter = window.__financeRecordFilter;
+            filter.mode = mode;
+            if (mode !== 'custom') { filter.start = ''; filter.end = ''; }
+            const start = document.getElementById('finance-filter-start');
+            const end = document.getElementById('finance-filter-end');
+            if (start) start.value = filter.start;
+            if (end) end.value = filter.end;
+            const custom = document.getElementById('finance-custom-date-fields');
+            if (custom) custom.classList.toggle('hidden', mode !== 'custom');
+            document.querySelectorAll('[data-finance-period]').forEach(button => {
+                button.classList.toggle('is-active', button.dataset.financePeriod === mode);
+            });
             renderAll();
         }
 
+        function setFinanceRecordDate(which, value) {
+            if (which !== 'start' && which !== 'end') return;
+            const filter = window.__financeRecordFilter;
+            filter.mode = 'custom';
+            filter[which] = String(value || '');
+            const custom = document.getElementById('finance-custom-date-fields');
+            if (custom) custom.classList.remove('hidden');
+            document.querySelectorAll('[data-finance-period]').forEach(button => {
+                button.classList.toggle('is-active', button.dataset.financePeriod === 'custom');
+            });
+            renderAll();
+        }
+
+        function setFinanceRecordSearch(value) {
+            window.__financeRecordFilter.query = String(value || '').trim().toLocaleLowerCase('th-TH');
+            renderAll();
+        }
+
+        function resetFinanceRecordFilters() {
+            window.__financeRecordFilter = { mode: 'all', start: '', end: '', query: '' };
+            const search = document.getElementById('finance-filter-search');
+            const start = document.getElementById('finance-filter-start');
+            const end = document.getElementById('finance-filter-end');
+            if (search) search.value = '';
+            if (start) start.value = '';
+            if (end) end.value = '';
+            const custom = document.getElementById('finance-custom-date-fields');
+            if (custom) custom.classList.add('hidden');
+            document.querySelectorAll('[data-finance-period]').forEach(button => {
+                button.classList.toggle('is-active', button.dataset.financePeriod === 'all');
+            });
+            renderAll();
+        }
+
+        function financeRecordMatches(item) {
+            if (!item) return false;
+            if (window.__ranViewingUnassigned) {
+                const knownIds = new Set(getFinanceServerList().map(server => String(server.id)));
+                if (item.serverId && knownIds.has(String(item.serverId))) return false;
+            } else if (window.activeServerFinanceId) {
+                if (String(item.serverId || '') !== String(window.activeServerFinanceId)) return false;
+            }
+
+            const filter = window.__financeRecordFilter || { mode: 'all', start: '', end: '', query: '' };
+            const date = String(item.date || '').slice(0, 10);
+            const now = new Date();
+            const today = getLocalDateString(now);
+            if (filter.mode === 'today' && date !== today) return false;
+            if (filter.mode === '7days') {
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+                if (date < getLocalDateString(firstDay) || date > today) return false;
+            }
+            if (filter.mode === 'month' && date.slice(0, 7) !== today.slice(0, 7)) return false;
+            if (filter.mode === 'year' && date.slice(0, 4) !== today.slice(0, 4)) return false;
+            if (filter.mode === 'custom') {
+                // A custom range must contain at least one boundary; otherwise it must not silently mean "all".
+                if (!filter.start && !filter.end) return false;
+                if (filter.start && date < filter.start) return false;
+                if (filter.end && date > filter.end) return false;
+            }
+            if (filter.query) {
+                const name = String(item.name || '').toLocaleLowerCase('th-TH');
+                if (!name.includes(filter.query)) return false;
+            }
+            return true;
+        }
+
+        function getFinanceServerList() {
+            return typeof window.getFinanceServerList === 'function' ? window.getFinanceServerList() : [];
+        }
+
+        function renderFinanceServerCell(type, index, item) {
+            if (window.__ranViewingUnassigned) {
+                const servers = getFinanceServerList();
+                const options = servers.map(server => `<option value="${escapeFinanceHtml(server.id)}">${escapeFinanceHtml(server.name)}</option>`).join('');
+                return `<select aria-label="เลือกเซิร์ฟเวอร์เพื่อผูกข้อมูลเก่า" onchange="updateRecord('${type}', ${index}, 'serverId', this.value)" class="w-full min-w-[110px] rounded border border-sky-200 bg-white p-1 text-xs text-slate-800"><option value="">ยังไม่ระบุเซิร์ฟ</option>${options}</select>`;
+            }
+            const label = !item.serverId
+                ? 'ยังไม่ระบุเซิร์ฟ'
+                : (typeof window.getFinanceServerName === 'function' ? window.getFinanceServerName(item.serverId) : item.serverId);
+            return `<span class="text-xs text-slate-500">${escapeFinanceHtml(label || '—')}</span>`;
+        }
+
+        function updateFinanceFilterSummary(incomeCount, expenseCount) {
+            const el = document.getElementById('finance-filter-result-count');
+            if (!el) return;
+            const total = incomeCount + expenseCount;
+            el.textContent = `พบ ${total.toLocaleString('th-TH')} รายการ (รายรับ ${incomeCount} / รายจ่าย ${expenseCount})`;
+        }
+
+        async function deleteVisibleFinanceRecords(type) {
+            if (currentRole !== 'admin') {
+                alert('เมนูลบข้อมูลตามช่วงเวลาอนุญาตเฉพาะแอดมิน');
+                return;
+            }
+            if (type !== 'income' && type !== 'expense') return;
+            const collection = type === 'income' ? incomes : expenses;
+            const targets = collection.filter(financeRecordMatches);
+            if (!targets.length) {
+                alert('ไม่มีรายการที่ตรงกับตัวกรองนี้');
+                return;
+            }
+            const total = targets.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+            const label = type === 'income' ? 'รายรับ' : 'รายจ่าย';
+            const range = (() => {
+                const f = window.__financeRecordFilter;
+                if (f.mode === 'today') return 'วันนี้';
+                if (f.mode === '7days') return '7 วันล่าสุด';
+                if (f.mode === 'month') return 'เดือนนี้';
+                if (f.mode === 'year') return 'ปีนี้';
+                if (f.mode === 'custom') return `${f.start || 'ไม่กำหนดวันเริ่ม'} ถึง ${f.end || 'ไม่กำหนดวันสิ้นสุด'}`;
+                return 'ทั้งหมด';
+            })();
+            const serverLabel = window.__ranViewingUnassigned
+                ? 'รายการที่ยังไม่ระบุเซิร์ฟเวอร์'
+                : (window.getFinanceServerName && window.activeServerFinanceId ? window.getFinanceServerName(window.activeServerFinanceId) : 'ทุกเซิร์ฟเวอร์');
+            const message = `ยืนยันลบ${label}ที่แสดงหรือไม่?\n\nเซิร์ฟเวอร์: ${serverLabel}\nช่วงเวลา: ${range}\nจำนวน: ${targets.length.toLocaleString('th-TH')} รายการ\nยอดรวม: ${formatMoney(total)} ฿\n\nการลบนี้ย้อนกลับจากหน้าเว็บไม่ได้ และจะบันทึกประวัติไว้ใน AuditLog`;
+            if (!confirm(message)) return;
+
+            const ids = [...new Set(targets.map(item => String(item.id || '').trim()).filter(Boolean))];
+            try {
+                // The Apps Script endpoint limits each audited batch to 100 IDs.
+                for (let i = 0; i < ids.length; i += 100) {
+                    await postSheetAction({ action: 'bulkDelete', ids: ids.slice(i, i + 100) });
+                }
+                const removeSet = new Set(targets);
+                if (type === 'income') incomes = incomes.filter(item => !removeSet.has(item));
+                else expenses = expenses.filter(item => !removeSet.has(item));
+                saveData();
+                refreshFinanceDisplays();
+                alert(`ลบ${label}สำเร็จ ${targets.length.toLocaleString('th-TH')} รายการ`);
+            } catch (error) {
+                console.error('ลบข้อมูลแบบช่วงเวลาไม่สำเร็จ:', error);
+                // Remove the selected local snapshots before reloading. Otherwise the legacy
+                // local-migration routine could re-add IDs that the server already deleted.
+                const selected = new Set(targets);
+                if (type === 'income') incomes = incomes.filter(item => !selected.has(item));
+                else expenses = expenses.filter(item => !selected.has(item));
+                saveData();
+                await loadTransactions({ silent: true });
+                alert(`ลบ${label}ไม่สำเร็จครบทั้งหมด: ${error.message}\nระบบซิงก์ข้อมูลจาก Google Sheets อีกครั้งแล้ว กรุณาตรวจสอบรายการ`);
+            }
+        }
+
+        function resetFilter() {
+            resetFinanceRecordFilters();
+        }
+
         function renderAll() {
-            const startDate = document.getElementById('filter-start') ? document.getElementById('filter-start').value : '';
-            const endDate = document.getElementById('filter-end') ? document.getElementById('filter-end').value : '';
-            const filterFn = (item) => {
-                if (window.activeServerFinanceId && item.serverId !== window.activeServerFinanceId) return false;
-                if (!startDate && !endDate) return true;
-                if (startDate && endDate) return item.date >= startDate && item.date <= endDate;
-                if (startDate) return item.date >= startDate;
-                if (endDate) return item.date <= endDate;
-                return true;
-            };
+            const filterFn = financeRecordMatches;
 
             const incBody = document.getElementById('income-tbody');
             if (!incBody) return;
@@ -1904,23 +2108,28 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     incomeSummary[item.name].total += item.amount;
                     displayCount++; incomeTxCount++;
 
+                    const serverCell = renderFinanceServerCell('income', index, item);
                     incBody.innerHTML += `
                         <tr class="hover:bg-green-50 border-b border-gray-100 group">
                             <td class="px-2 py-1">
-                                <input type="text" value="${item.date}" onchange="updateRecord('income', ${index}, 'date', this.value)" class="date-input bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-gray-700 text-sm transition-colors cursor-pointer focus:cursor-text">
+                                <input type="text" value="${escapeFinanceHtml(item.date)}" onchange="updateRecord('income', ${index}, 'date', this.value)" class="date-input bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-gray-700 text-sm transition-colors cursor-pointer focus:cursor-text">
                             </td>
                             <td class="px-2 py-1 font-medium">
-                                <input type="text" value="${item.name}" onchange="updateRecord('income', ${index}, 'name', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-sm transition-colors cursor-pointer focus:cursor-text">
+                                <input type="text" value="${escapeFinanceHtml(item.name)}" onchange="updateRecord('income', ${index}, 'name', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-sm transition-colors cursor-pointer focus:cursor-text">
                             </td>
                             <td class="px-2 py-1 text-right">
-                                <input type="number" value="${item.amount}" onchange="updateRecord('income', ${index}, 'amount', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-right text-green-600 font-bold text-sm transition-colors cursor-pointer focus:cursor-text">
+                                <input type="number" value="${Number(item.amount) || 0}" onchange="updateRecord('income', ${index}, 'amount', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-right text-green-600 font-bold text-sm transition-colors cursor-pointer focus:cursor-text">
                             </td>
+                            <td class="px-2 py-1">${serverCell}</td>
                             <td class="px-2 py-1 text-center">
-                                <button onclick="deleteIncome(${index})" class="text-red-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash"></i></button>
+                                <button onclick="deleteIncome(${index})" class="text-red-400 hover:text-red-600 p-1" title="ลบรายการนี้"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>`;
                 }
             });
+            if (incomeTxCount === 0) {
+                incBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">ไม่พบรายการรายรับตามตัวกรองที่เลือก</td></tr>';
+            }
 
             const expBody = document.getElementById('expense-tbody');
             if (!expBody) return;
@@ -1936,25 +2145,31 @@ select option{background:#101a30!important;color:#edf5ff!important}
                     expenseSummary[item.name].total += item.amount;
                     displayCount++; expenseTxCount++;
 
+                    const serverCell = renderFinanceServerCell('expense', index, item);
                     expBody.innerHTML += `
                         <tr class="hover:bg-red-50 border-b border-gray-100 group">
                             <td class="px-2 py-1">
-                                <input type="text" value="${item.date}" onchange="updateRecord('expense', ${index}, 'date', this.value)" class="date-input bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-gray-700 text-sm transition-colors cursor-pointer focus:cursor-text">
+                                <input type="text" value="${escapeFinanceHtml(item.date)}" onchange="updateRecord('expense', ${index}, 'date', this.value)" class="date-input bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-gray-700 text-sm transition-colors cursor-pointer focus:cursor-text">
                             </td>
                             <td class="px-2 py-1 font-medium">
-                                <input type="text" value="${item.name}" onchange="updateRecord('expense', ${index}, 'name', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-sm transition-colors cursor-pointer focus:cursor-text">
+                                <input type="text" value="${escapeFinanceHtml(item.name)}" onchange="updateRecord('expense', ${index}, 'name', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-sm transition-colors cursor-pointer focus:cursor-text">
                             </td>
                             <td class="px-2 py-1 text-right">
-                                <input type="number" value="${item.amount}" onchange="updateRecord('expense', ${index}, 'amount', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-right text-red-500 font-bold text-sm transition-colors cursor-pointer focus:cursor-text">
+                                <input type="number" value="${Number(item.amount) || 0}" onchange="updateRecord('expense', ${index}, 'amount', this.value)" class="bg-transparent focus:bg-white border border-transparent focus:border-blue-400 rounded p-1 outline-none w-full text-right text-red-500 font-bold text-sm transition-colors cursor-pointer focus:cursor-text">
                             </td>
+                            <td class="px-2 py-1">${serverCell}</td>
                             <td class="px-2 py-1 text-center">
-                                <button onclick="deleteExpense(${index})" class="text-red-400 hover:text-red-600 p-1"><i class="fa-solid fa-trash"></i></button>
+                                <button onclick="deleteExpense(${index})" class="text-red-400 hover:text-red-600 p-1" title="ลบรายการนี้"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>`;
                 }
             });
+            if (expenseTxCount === 0) {
+                expBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">ไม่พบรายการรายจ่ายตามตัวกรองที่เลือก</td></tr>';
+            }
             
             initDatePickers();
+            updateFinanceFilterSummary(incomeTxCount, expenseTxCount);
 
             const sumIncTbody = document.getElementById('summary-income-tbody');
             if(sumIncTbody) {
@@ -2502,6 +2717,8 @@ select option{background:#101a30!important;color:#edf5ff!important}
 try {
 function srvKey(){return (typeof transactionStorageKey==='function'?transactionStorageKey('server_finance_v1'):'ran99_server_finance_v1');}
 let srvData=[]; try{srvData=JSON.parse(localStorage.getItem(srvKey())||'[]')}catch(e){srvData=[]}
+window.getFinanceServerList=()=>srvData.map(s=>({id:String(s.id),name:String(s.name)}));
+window.getFinanceServerName=id=>{const s=srvData.find(x=>String(x.id)===String(id));return s?s.name:'ไม่พบชื่อเซิร์ฟเวอร์'};
 function srvSave(){localStorage.setItem(srvKey(),JSON.stringify(srvData));srvRender()}
 function srvFmt(v){return Number(v||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+' ฿'}
 function srvTransactions(s){return {incomes:incomes.filter(e=>e.serverId===s.id),expenses:expenses.filter(e=>e.serverId===s.id)}}
@@ -2543,12 +2760,13 @@ function financeView(view, toolId){
  if(main)main.scrollTop=0;
  window.scrollTo({top:0,behavior:'auto'});
 }
-function showFinanceDashboard(){window.activeServerFinanceId=null;financeView('dashboard');renderAll();srvRender();document.getElementById('section-dashboard').scrollIntoView({behavior:'smooth',block:'start'});}
-function showServerFinanceHome(){window.activeServerFinanceId=null;financeView('servers');document.getElementById('srv-detail').classList.add('hidden');document.getElementById('srv-server-list').classList.remove('hidden');srvRender();renderAll();document.getElementById('section-server-finance').scrollIntoView({behavior:'smooth',block:'start'});}
-function srvOpen(id){window.activeServerFinanceId=id;const s=srvData.find(x=>x.id===id);if(!s)return;if(typeof syncDefaultDateFields==='function')syncDefaultDateFields();financeView('entry');document.querySelectorAll('#server-nav-list a[data-server-id]').forEach(a=>a.classList.toggle('ran-server-active',a.dataset.serverId===String(id)));const banner=document.getElementById('server-finance-context');banner.textContent='กำลังบันทึกข้อมูลของเซิร์ฟ: '+s.name+' — รายรับ/รายจ่ายด้านล่างจะแยกเฉพาะเซิร์ฟนี้';renderAll();document.getElementById('income-panel').scrollIntoView({behavior:'smooth',block:'start'});}
+function showFinanceDashboard(){window.activeServerFinanceId=null;window.__ranViewingUnassigned=false;financeView('dashboard');renderAll();srvRender();document.getElementById('section-dashboard').scrollIntoView({behavior:'smooth',block:'start'});}
+function showServerFinanceHome(){window.activeServerFinanceId=null;window.__ranViewingUnassigned=false;financeView('servers');document.getElementById('srv-detail').classList.add('hidden');document.getElementById('srv-server-list').classList.remove('hidden');srvRender();renderAll();document.getElementById('section-server-finance').scrollIntoView({behavior:'smooth',block:'start'});}
+function srvOpen(id){window.activeServerFinanceId=id;window.__ranViewingUnassigned=false;const s=srvData.find(x=>x.id===id);if(!s)return;if(typeof syncDefaultDateFields==='function')syncDefaultDateFields();financeView('entry');document.querySelectorAll('#server-nav-list a[data-server-id]').forEach(a=>a.classList.toggle('ran-server-active',a.dataset.serverId===String(id)));const banner=document.getElementById('server-finance-banner');if(banner)banner.textContent='กำลังบันทึกข้อมูลของเซิร์ฟ: '+s.name+' — ตารางด้านล่างจะแสดงเฉพาะเซิร์ฟนี้';renderAll();document.getElementById('income-panel').scrollIntoView({behavior:'smooth',block:'start'});}
+function srvOpenUnassigned(){window.activeServerFinanceId=null;window.__ranViewingUnassigned=true;financeView('entry');document.querySelectorAll('#server-nav-list a[data-server-id]').forEach(a=>a.classList.remove('ran-server-active'));const banner=document.getElementById('server-finance-banner');if(banner)banner.textContent='กำลังตรวจสอบรายการเก่าที่ยังไม่ระบุเซิร์ฟเวอร์ — เลือกชื่อเซิร์ฟเวอร์ในแต่ละแถวเพื่อผูกข้อมูลกลับเข้าระบบ';renderAll();document.getElementById('income-panel').scrollIntoView({behavior:'smooth',block:'start'});}
 function srvDelete(id){let s=srvData.find(x=>x.id===id);if(s&&confirm('ลบชื่อเซิร์ฟเวอร์ '+s.name+' หรือไม่? รายการที่บันทึกไว้จะยังอยู่ในข้อมูลเดิม แต่จะไม่ถูกจัดเข้าภาพรวมเซิร์ฟอีก')){srvData=srvData.filter(x=>x.id!==id);if(window.activeServerFinanceId===id)window.activeServerFinanceId=null;srvSave()}}
-function srvRender(){let nav=document.getElementById('server-nav-list');if(nav)nav.innerHTML=srvData.map(s=>`<a data-server-id="${s.id}" onclick="srvOpen('${s.id}');return false" href="#section-dashboard" class="flex items-center gap-3 text-slate-300 hover:bg-slate-700 p-2 rounded text-sm"><i class="fa-solid fa-server w-5 text-center text-sky-300"></i><span class="sidebar-text truncate">${s.name}</span></a>`).join('');
-let cards=document.getElementById('srv-server-list');if(cards)cards.innerHTML=srvData.length?srvData.map(s=>{let t=srvCalc(s);return `<div class="rounded-xl border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm"><div class="flex justify-between"><div><b class="text-slate-800">${s.name}</b><div class="text-xs text-slate-400">${srvTransactions(s).incomes.length+srvTransactions(s).expenses.length} รายการ</div></div><button onclick="srvDelete('${s.id}')" class="text-slate-300 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-3 gap-2 mt-3 text-xs"><div><span class="text-slate-400">รายรับ</span><b class="block text-emerald-600">${srvFmt(t.income)}</b></div><div><span class="text-slate-400">รายจ่าย</span><b class="block text-rose-500">${srvFmt(t.expense)}</b></div><div><span class="text-slate-400">สุทธิ</span><b class="block ${t.profit>=0?'text-sky-700':'text-rose-600'}">${srvFmt(t.profit)}</b></div></div><button onclick="srvOpen('${s.id}')" class="mt-3 w-full rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm p-2">ใช้เซิร์ฟนี้ในช่องข้อมูลรายรับ/รายจ่าย</button></div>`}).join(''):'<div class="text-sm text-slate-400">ยังไม่มีเซิร์ฟเวอร์ เพิ่มชื่อด้านบนเพื่อเริ่มต้น</div>';
+function srvRender(){let knownServerIds=new Set(srvData.map(s=>String(s.id)));let unassignedCount=[...incomes,...expenses].filter(t=>!t.serverId||!knownServerIds.has(String(t.serverId))).length;let nav=document.getElementById('server-nav-list');if(nav)nav.innerHTML=srvData.map(s=>`<a data-server-id="${s.id}" onclick="srvOpen('${s.id}');return false" href="#section-dashboard" class="flex items-center gap-3 text-slate-300 hover:bg-slate-700 p-2 rounded text-sm"><i class="fa-solid fa-server w-5 text-center text-sky-300"></i><span class="sidebar-text truncate">${s.name}</span></a>`).join('')+`<a onclick="srvOpenUnassigned();return false" href="#section-dashboard" class="flex items-center gap-3 text-amber-200 hover:bg-slate-700 p-2 rounded text-sm"><i class="fa-solid fa-box-archive w-5 text-center"></i><span class="sidebar-text truncate">รายการเก่ายังไม่ผูก (${unassignedCount})</span></a>`;
+let cards=document.getElementById('srv-server-list');if(cards)cards.innerHTML=(srvData.length?srvData.map(s=>{let t=srvCalc(s);return `<div class="rounded-xl border border-sky-100 bg-gradient-to-br from-white to-sky-50 p-4 shadow-sm"><div class="flex justify-between"><div><b class="text-slate-800">${s.name}</b><div class="text-xs text-slate-400">${srvTransactions(s).incomes.length+srvTransactions(s).expenses.length} รายการ</div></div><button onclick="srvDelete('${s.id}')" class="text-slate-300 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-3 gap-2 mt-3 text-xs"><div><span class="text-slate-400">รายรับ</span><b class="block text-emerald-600">${srvFmt(t.income)}</b></div><div><span class="text-slate-400">รายจ่าย</span><b class="block text-rose-500">${srvFmt(t.expense)}</b></div><div><span class="text-slate-400">สุทธิ</span><b class="block ${t.profit>=0?'text-sky-700':'text-rose-600'}">${srvFmt(t.profit)}</b></div></div><button onclick="srvOpen('${s.id}')" class="mt-3 w-full rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm p-2">ใช้เซิร์ฟนี้ในช่องข้อมูลรายรับ/รายจ่าย</button></div>`}).join(''):'<div class="text-sm text-slate-400">ยังไม่มีเซิร์ฟเวอร์ เพิ่มชื่อด้านบนเพื่อเริ่มต้น</div>')+`<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"><div class="font-bold text-amber-900"><i class="fa-solid fa-box-archive mr-1"></i> รายการเก่าที่ยังไม่ระบุเซิร์ฟ</div><div class="mt-1 text-xs text-amber-800">พบ ${unassignedCount.toLocaleString('th-TH')} รายการที่ยังไม่ผูกกับเซิร์ฟเวอร์</div><button onclick="srvOpenUnassigned()" class="mt-3 w-full rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm p-2">ตรวจสอบและเลือกเซิร์ฟเวอร์</button></div>`;
 let rows=document.getElementById('srv-overview-rows'),allI=0,allE=0;if(rows){rows.innerHTML=srvData.map(s=>{let t=srvCalc(s);allI+=t.income;allE+=t.expense;return `<tr class="border-b border-sky-50 hover:bg-sky-50"><td class="px-3 py-2 font-semibold">${s.name}</td><td class="px-3 py-2 text-right text-emerald-600">${srvFmt(t.income)}</td><td class="px-3 py-2 text-right text-rose-500">${srvFmt(t.expense)}</td><td class="px-3 py-2 text-right font-bold ${t.profit>=0?'text-sky-700':'text-rose-600'}">${srvFmt(t.profit)}</td><td class="px-3 py-2 text-right"><span class="ran-margin-pill">${t.income?((t.profit/t.income*100).toFixed(2)):0}%</span></td></tr>`}).join('')+'<tr class="bg-sky-50 font-bold"><td class="px-3 py-2">รวมทุกเซิร์ฟ</td><td class="px-3 py-2 text-right text-emerald-600">'+srvFmt(allI)+'</td><td class="px-3 py-2 text-right text-rose-500">'+srvFmt(allE)+'</td><td class="px-3 py-2 text-right '+((allI-allE)>=0?'text-sky-700':'text-rose-600')+'">'+srvFmt(allI-allE)+'</td></tr>';document.getElementById('srv-all-income').textContent=srvFmt(allI);document.getElementById('srv-all-expense').textContent=srvFmt(allE);let p=document.getElementById('srv-all-profit');p.textContent=srvFmt(allI-allE);p.className='ran-kpi-value '+(allI-allE>=0?'text-sky-700':'text-rose-600');let total=allI+allE,ip=total?allI/total*100:0,ep=total?allE/total*100:0,deg=total?allI/total*360:0;let donut=document.getElementById('ran-dashboard-donut');if(donut)donut.style.background=`conic-gradient(#20b9ff 0deg ${deg}deg,#f46ca6 ${deg}deg 360deg)`;let setTxt=(id,val)=>{let el=document.getElementById(id);if(el)el.textContent=val};setTxt('ran-donut-income',srvFmt(allI));setTxt('ran-donut-expense',srvFmt(allE));setTxt('ran-donut-income-percent',ip.toFixed(1)+'%');setTxt('ran-donut-expense-percent',ep.toFixed(1)+'%');setTxt('ran-donut-profit',srvFmt(allI-allE))}
 let detailBox=document.getElementById('srv-overview-details');if(detailBox){detailBox.innerHTML=srvData.length?srvData.map(s=>{let tx=srvTransactions(s),inc={},exp={};tx.incomes.forEach(e=>inc[e.name]=(inc[e.name]||0)+Number(e.amount));tx.expenses.forEach(e=>exp[e.name]=(exp[e.name]||0)+Number(e.amount));let t=srvCalc(s);return `<div class="rounded-xl border border-sky-100 overflow-hidden"><div class="bg-sky-100 text-sky-900 px-3 py-2 font-bold flex justify-between"><span>${s.name}</span><span class="text-sm ${t.profit>=0?'text-sky-700':'text-rose-600'}">สุทธิ ${srvFmt(t.profit)}</span></div><div class="grid md:grid-cols-2 gap-3 p-3"><div><b class="text-emerald-700">รายรับ</b>${Object.keys(inc).length?Object.entries(inc).map(([n,v])=>`<div class="flex justify-between border-b py-1 text-sm"><span>${n}</span><span class="text-emerald-600 font-semibold">${srvFmt(v)}</span></div>`).join(''):'<p class="text-xs text-slate-400 py-1">ยังไม่มีรายรับ</p>'}</div><div><b class="text-rose-600">รายจ่าย</b>${Object.keys(exp).length?Object.entries(exp).map(([n,v])=>`<div class="flex justify-between border-b py-1 text-sm"><span>${n}</span><span class="text-rose-600 font-semibold">${srvFmt(v)}</span></div>`).join(''):'<p class="text-xs text-slate-400 py-1">ยังไม่มีรายจ่าย</p>'}</div></div></div>`}).join(''):'<p class="text-sm text-slate-400">เพิ่มเซิร์ฟเวอร์และบันทึกข้อมูลจากช่องรายรับ/รายจ่ายก่อน</p>'}
 }
@@ -2557,6 +2775,7 @@ document.querySelector('#sidebar nav a[href="#section-dashboard"]')?.addEventLis
 window.showFinanceDashboard=showFinanceDashboard;
 window.showServerFinanceHome=showServerFinanceHome;
 window.srvOpen=srvOpen;
+window.srvOpenUnassigned=srvOpenUnassigned;
 window.srvAddServer=srvAddServer;
 window.srvDelete=srvDelete;
 window.srvRender=srvRender;
@@ -2645,6 +2864,12 @@ window.addEventListener('load',()=>{ranUpdatePeriodStats();});
 
 </script>
 
+<style id="ran-finance-record-manager-css">
+#finance-record-manager{font-family:'Prompt',sans-serif}
+#finance-record-manager .finance-period-button{white-space:nowrap}
+#income-panel table,#expense-panel table{min-width:760px}
+#income-panel .overflow-y-auto,#expense-panel .overflow-y-auto{overflow-x:auto}
+</style>
 <style id="ran-global-form-contrast-v3">
 /* V3: Global contrast repair for non-dashboard forms/tools only. Visual-only; no scripts or data logic. */
 #app-content :not(#section-dashboard) input:not([type=checkbox]):not([type=radio]):not([type=range]),
