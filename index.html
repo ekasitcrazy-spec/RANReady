@@ -1728,7 +1728,7 @@ html,body#app-body{background:var(--ran-bg)!important;color:var(--ran-white)!imp
         let currentUser = '';
         let currentRole = '';
         let authToken = '';
-        const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbyKwpZybBnEvj5PQR81F06mQPVpZJaJJjgviZrE59D-DjhrEr7DLR4FkglNBhguDIKx/exec';
+        const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbw1NahUZidSTsKpjZByVzjS7nw1c-WfmJYxV19SI1mfrxfjPKqoCqE_mAx_ZtBjpF0/exec';
         const TRANSACTION_STORAGE_PREFIX = `ran99_${new URL(SHEET_API_URL).pathname.split('/')[3]}_`;
 
         function transactionStorageKey(name) {
@@ -1953,7 +1953,6 @@ html,body#app-body{background:var(--ran-bg)!important;color:var(--ran-white)!imp
                     );
                     const loadedIncomes = [];
                     const loadedExpenses = [];
-                    const sheetIds = new Set();
 
                     validRows.forEach(row => {
                         if (row.type !== 'income' && row.type !== 'expense') {
@@ -1968,52 +1967,15 @@ html,body#app-body{background:var(--ran-bg)!important;color:var(--ran-white)!imp
                             createdBy: String(row.createdBy == null ? '' : row.createdBy),
                             serverId: row.serverId || row.server_id || knownServerIds.get(id) || null
                         };
-                        if (transaction.id) sheetIds.add(transaction.id);
                         const collection = row.type === 'income' ? loadedIncomes : loadedExpenses;
                         const optionsList = row.type === 'income' ? incomeOptions : expenseOptions;
                         collection.push(transaction);
                         if (transaction.name && !optionsList.includes(transaction.name)) optionsList.push(transaction.name);
                     });
 
-                    let migratedCount = 0;
-                    const localTransactions = [
-                        ...incomes.map(transaction => ({ type: 'income', transaction })),
-                        ...expenses.map(transaction => ({ type: 'expense', transaction }))
-                    ];
-                    localTransactions.forEach(({ transaction }) => {
-                        if (!transaction.id) {
-                            transaction.id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                        }
-                    });
-                    saveData();
-
-                    for (const { type, transaction } of localTransactions) {
-                        const id = String(transaction.id);
-                        if (sheetIds.has(id)) continue;
-
-                        await postSheetAction({
-                            action: 'add',
-                            source: 'local_migration',
-                            id,
-                            type,
-                            date: transaction.date,
-                            item: transaction.name,
-                            amount: Number(transaction.amount),
-                            createdBy: transaction.createdBy || currentUser,
-                            serverId: transaction.serverId || null
-                        });
-                        sheetIds.add(id);
-                        const collection = type === 'income' ? loadedIncomes : loadedExpenses;
-                        collection.push({
-                            ...transaction,
-                            id,
-                            date: transaction.date ? String(transaction.date).split('T')[0] : '',
-                            name: String(transaction.name == null ? '' : transaction.name),
-                            amount: Number(transaction.amount) || 0,
-                            serverId: transaction.serverId || null
-                        });
-                        migratedCount++;
-                    }
+                    // Google Sheets is the sole source of truth for transactions.
+                    // Never auto-migrate missing localStorage rows: a deleted record
+                    // may still exist in another tab/device's stale cache.
 
                     incomes = loadedIncomes;
                     expenses = loadedExpenses;
@@ -2021,13 +1983,10 @@ html,body#app-body{background:var(--ran-bg)!important;color:var(--ran-white)!imp
                     saveData();
                     refreshFinanceDisplays();
 
-                    if (migratedCount && !silent) {
-                        alert(`ส่งคำขอย้ายรายการเดิมไป Google Sheets แล้ว ${migratedCount} รายการ แต่ Apps Script แบบนี้ไม่ส่งผลยืนยันกลับมาที่หน้าเว็บ กรุณาตรวจแถวในชีต`);
-                    }
                     return true;
                 } catch (error) {
                     console.error('ดึงข้อมูลไม่สำเร็จ:', error);
-                    // Do not discard the local copy when the Sheets request fails.
+                    // Offline display only: cached transactions are not migrated or uploaded here.
                     try { refreshFinanceDisplays(); } catch (renderError) { console.error('แสดงข้อมูลสำรองไม่สำเร็จ:', renderError); }
                     if (!silent) {
                         alert(`โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ: ${error.message} ขณะนี้จะแสดงข้อมูลที่บันทึกไว้ในเครื่อง`);
@@ -5100,6 +5059,163 @@ window.addEventListener('load',()=>{ranUpdatePeriodStats();});
   #section-dashboard .ran-dash-main-grid { grid-template-columns:1fr !important; }
   #section-dashboard .ran-dash-detail-cards { grid-template-columns:1fr !important; }
   #section-dashboard .ran-donut { width:min(34vw,170px) !important; height:min(34vw,170px) !important; min-width:min(34vw,170px) !important; flex-basis:min(34vw,170px) !important; }
+}
+</style>
+
+
+<style id="ran-adaptive-server-layout-v11">
+/* V11: adaptive server dashboard layout. Visual-only overrides; do not change data or app logic. */
+@media (min-width: 901px) {
+  /* Let the summary table grow with the server count so its last rows and total never get clipped. */
+  #section-dashboard .ran-dash-main-grid {
+    align-items: stretch !important;
+    grid-template-columns: minmax(0, 1.51fr) minmax(0, 1fr) !important;
+  }
+  #section-dashboard .ran-dash-panel {
+    height: auto !important;
+    min-height: 14.5vw !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    align-self: stretch !important;
+  }
+  #section-dashboard .ran-dash-summary {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  #section-dashboard .ran-dash-table-wrap {
+    height: auto !important;
+    max-height: 22vw !important;
+    flex: 0 0 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: .38vw .5vw .55vw !important;
+  }
+  #section-dashboard .ran-dash-table {
+    width: 100% !important;
+    height: auto !important;
+    table-layout: fixed !important;
+  }
+  #section-dashboard .ran-dash-table thead th {
+    height: 2.05vw !important;
+    padding: .38vw .42vw !important;
+    line-height: 1.15 !important;
+    vertical-align: middle !important;
+  }
+  #section-dashboard .ran-dash-table tbody td {
+    height: 2.25vw !important;
+    padding: .38vw .42vw !important;
+    line-height: 1.2 !important;
+    vertical-align: middle !important;
+  }
+  #section-dashboard .ran-dash-table tbody tr:last-child td {
+    font-weight: 900 !important;
+  }
+
+  /* Balance the donut card to the actual table height. */
+  #section-dashboard .ran-dash-ratio {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  #section-dashboard .ran-dash-ratio .ran-ratio-content {
+    flex: 1 1 auto !important;
+    min-height: 12vw !important;
+    height: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-evenly !important;
+    flex-wrap: nowrap !important;
+    gap: .7vw !important;
+    padding: .5vw .7vw !important;
+  }
+  #section-dashboard .ran-dash-ratio .ran-donut {
+    width: 11.8vw !important;
+    height: 11.8vw !important;
+    min-width: 11.8vw !important;
+    flex: 0 0 11.8vw !important;
+  }
+  #section-dashboard .ran-dash-ratio .ran-donut::before {
+    width: 72% !important;
+    height: 72% !important;
+  }
+
+  /* All server detail cards form a real 2-column grid: 4 servers = 2x2, 5 = 2x2 + centered final card. */
+  #section-dashboard .ran-dash-details {
+    box-sizing: border-box !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 .95vw .8vw !important;
+    padding: 0 .72vw .72vw !important;
+  }
+  #section-dashboard .ran-dash-details-title {
+    height: auto !important;
+    min-height: 2.7vw !important;
+    padding: .48vw .2vw !important;
+  }
+  #section-dashboard .ran-dash-detail-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-flow: row !important;
+    grid-auto-columns: auto !important;
+    grid-auto-rows: auto !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    scroll-snap-type: none !important;
+    gap: .72vw !important;
+  }
+  #section-dashboard .ran-dash-detail-cards > div {
+    display: block !important;
+    grid-column: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 7.3vw !important;
+    max-height: none !important;
+    justify-self: stretch !important;
+    scroll-snap-align: none !important;
+  }
+  #section-dashboard .ran-dash-detail-cards > div:last-child:nth-child(odd):not(:only-child) {
+    grid-column: 1 / -1 !important;
+    width: calc((100% - .72vw) / 2) !important;
+    justify-self: center !important;
+  }
+}
+@media (max-width: 900px) {
+  #section-dashboard .ran-dash-panel {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+  #section-dashboard .ran-dash-table-wrap {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+  #section-dashboard .ran-dash-details,
+  #section-dashboard .ran-dash-detail-cards {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  #section-dashboard .ran-dash-detail-cards {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-auto-flow: row !important;
+    gap: 10px !important;
+  }
+  #section-dashboard .ran-dash-detail-cards > div {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100px !important;
+  }
 }
 </style>
 
