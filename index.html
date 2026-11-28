@@ -5219,5 +5219,198 @@ window.addEventListener('load',()=>{ranUpdatePeriodStats();});
 }
 </style>
 
+
+<style id="ran-reference-text-menu-v13">
+/* V13 visual correction: brighter reference typography and cleaner sidebar menu frames.
+   No markup, JavaScript, data, authentication, or API behavior is changed. */
+:root {
+  --ran-reference-white: #f4faff;
+  --ran-reference-cyan: #63e6ff;
+  --ran-reference-line: rgba(27, 177, 255, .58);
+}
+
+/* Global header and sidebar frame */
+#app-shell > main > .app-topbar {
+  color: var(--ran-reference-white) !important;
+  border-bottom: 1px solid var(--ran-reference-line) !important;
+  box-shadow: 0 3px 15px rgba(0, 131, 255, .18) !important;
+}
+#app-shell > main > .app-topbar p,
+#app-shell > main > .app-topbar h1,
+#app-shell > main > .app-topbar span {
+  color: #f3f9ff !important;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .32), 0 0 8px rgba(40, 174, 255, .15) !important;
+}
+#mobile-menu-button { color: #69e5ff !important; }
+#logout-button {
+  color: #f2f9ff !important;
+  border: 1px solid rgba(65, 196, 255, .52) !important;
+  background: rgba(2, 19, 48, .72) !important;
+}
+
+/* Sidebar: remove persistent boxes from ordinary links; frame only the selected item. */
+#sidebar {
+  background: linear-gradient(180deg, #061630 0%, #04132d 54%, #020c20 100%) !important;
+  border-right: 1px solid rgba(38, 190, 255, .82) !important;
+  box-shadow: 4px 0 22px rgba(0, 115, 255, .22), inset -1px 0 rgba(255,255,255,.08) !important;
+}
+#sidebar > div:first-child {
+  border-bottom: 1px solid rgba(67, 199, 255, .65) !important;
+  background: linear-gradient(105deg, #071a3b 0%, #0b2c60 56%, #061630 100%) !important;
+}
+#sidebar #sidebar-title h1 {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 5px rgba(0,0,0,.5), 0 0 10px rgba(65,190,255,.28) !important;
+}
+#sidebar nav a,
+#sidebar nav a:link,
+#sidebar nav a:visited {
+  color: #edf7ff !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  font-weight: 650 !important;
+  text-shadow: 0 1px 4px rgba(0,0,0,.78) !important;
+  transform: none !important;
+}
+#sidebar nav a > i {
+  color: #64dcff !important;
+  filter: drop-shadow(0 0 4px rgba(31,190,255,.2)) !important;
+}
+#sidebar nav a .sidebar-text {
+  color: inherit !important;
+  font-weight: 650 !important;
+}
+#sidebar nav a:hover {
+  color: #ffffff !important;
+  background: linear-gradient(90deg, rgba(0,133,255,.16), rgba(0,83,180,.07)) !important;
+  border-color: transparent !important;
+  box-shadow: inset 2px 0 0 rgba(70,210,255,.5) !important;
+  transform: none !important;
+}
+/* Remove the browser's mouse-click focus box on a non-active menu link. */
+#sidebar nav a:focus:not(:focus-visible) {
+  outline: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+#sidebar nav a:focus-visible {
+  outline: 1px solid #70e6ff !important;
+  outline-offset: -1px !important;
+}
+#sidebar nav a.ran-nav-active,
+#sidebar nav a.bg-blue-600,
+#sidebar nav a.active {
+  color: #ffffff !important;
+  background: linear-gradient(100deg, #08a9ed 0%, #0877e6 58%, #1556d4 100%) !important;
+  border: 1px solid #6be8ff !important;
+  border-radius: 7px !important;
+  box-shadow: 0 0 8px rgba(0,197,255,.72), 0 0 18px rgba(0,115,255,.34), inset 0 1px rgba(255,255,255,.28) !important;
+  text-shadow: 0 1px 4px rgba(0,0,0,.35) !important;
+}
+#sidebar nav .sidebar-text.pt-4 {
+  color: #7edfff !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 8px rgba(0,164,255,.24) !important;
+}
+
+/* Dashboard headings, KPI labels and figures: clear white lettering like the reference. */
+#section-dashboard .ran-dash-title,
+#section-dashboard .ran-dash-details-title,
+#section-dashboard .ran-dash-panel-title,
+#section-dashboard .ran-dash-detail-cards > div > div:first-child,
+#section-dashboard .ran-kpi-value {
+  color: #ffffff !important;
+  text-shadow: 0 1px 5px rgba(0,0,0,.38), 0 0 10px rgba(29,175,255,.22) !important;
+}
+#section-dashboard .ran-dash-subtitle,
+#section-dashboard .ran-kpi-label {
+  color: #e7f6ff !important;
+  text-shadow: 0 1px 4px rgba(0,0,0,.4) !important;
+}
+#section-dashboard .ran-dash-panel-title i,
+#section-dashboard .ran-dash-details-title i {
+  color: #29dfff !important;
+  filter: drop-shadow(0 0 5px rgba(0,205,255,.45)) !important;
+}
+
+/* The five-column server table uses the accent colors from the supplied reference. */
+#section-dashboard .ran-dash-table thead th {
+  color: #f3faff !important;
+  background: linear-gradient(90deg, #104e98 0%, #0c3f82 100%) !important;
+  border-bottom: 1px solid rgba(64,196,255,.5) !important;
+  font-weight: 800 !important;
+}
+#section-dashboard .ran-dash-table tbody td {
+  color: #f0f7ff !important;
+  border-bottom: 1px solid rgba(102,169,229,.2) !important;
+}
+#section-dashboard .ran-dash-table tbody td:first-child {
+  color: #f4faff !important;
+  font-weight: 750 !important;
+}
+#section-dashboard #srv-overview-rows tr td:nth-child(2) {
+  color: #2be9bd !important;
+  font-weight: 800 !important;
+}
+#section-dashboard #srv-overview-rows tr td:nth-child(3) {
+  color: #ff79b8 !important;
+  font-weight: 800 !important;
+}
+#section-dashboard #srv-overview-rows tr td:nth-child(4) {
+  color: #21c3ff !important;
+  font-weight: 800 !important;
+}
+#section-dashboard #srv-overview-rows tr td:nth-child(5) {
+  color: #eef8ff !important;
+  font-weight: 700 !important;
+}
+#section-dashboard #srv-overview-rows tr:last-child td {
+  background: linear-gradient(90deg, rgba(13,85,158,.92), rgba(5,48,107,.92)) !important;
+  border-bottom: 0 !important;
+}
+#section-dashboard #srv-overview-rows tr:last-child td:first-child { color: #ffffff !important; }
+#section-dashboard #srv-overview-rows tr:last-child td:nth-child(2) { color: #36f0c7 !important; }
+#section-dashboard #srv-overview-rows tr:last-child td:nth-child(3) { color: #ff85bd !important; }
+#section-dashboard #srv-overview-rows tr:last-child td:nth-child(4) { color: #39caff !important; }
+
+/* Donut legend and server detail cards. */
+#section-dashboard .ran-ratio-legend,
+#section-dashboard .ran-ratio-legend > div,
+#section-dashboard .ran-ratio-legend > div > div {
+  color: #eef8ff !important;
+}
+#section-dashboard .ran-ratio-legend strong { color: #ffffff !important; }
+#section-dashboard .ran-ratio-legend small { color: #b6dcfa !important; }
+#section-dashboard .ran-dash-detail-cards > div > div:first-child {
+  color: #ffffff !important;
+  background: linear-gradient(90deg, #12549b, #0a397a) !important;
+  border-bottom: 1px solid rgba(68,194,255,.46) !important;
+}
+#section-dashboard .ran-dash-detail-cards > div > div:not(:first-child) {
+  color: #eaf6ff !important;
+}
+#section-dashboard .ran-dash-detail-cards > div > div:not(:first-child) > div {
+  color: #d9edff !important;
+}
+#section-dashboard .ran-dash-detail-cards > div > div:not(:first-child) > div:first-child {
+  color: #35efc4 !important;
+  font-weight: 800 !important;
+}
+#section-dashboard .ran-dash-detail-cards > div > div:not(:first-child) > div:nth-child(2) {
+  color: #ff81ba !important;
+  font-weight: 800 !important;
+}
+#section-dashboard #srv-overview-details > div > div:nth-child(2) > div:first-child > b { color: #35efc4 !important; }
+#section-dashboard #srv-overview-details > div > div:nth-child(2) > div:nth-child(2) > b { color: #ff81ba !important; }
+#section-dashboard #srv-overview-details > div > div:nth-child(2) > div:first-child > div span:first-child { color: #edf7ff !important; }
+#section-dashboard #srv-overview-details > div > div:nth-child(2) > div:first-child > div span:last-child { color: #24e6b4 !important; font-weight: 800 !important; }
+#section-dashboard #srv-overview-details > div > div:nth-child(2) > div:nth-child(2) > div span:first-child { color: #edf7ff !important; }
+#section-dashboard #srv-overview-details > div > div:nth-child(2) > div:nth-child(2) > div span:last-child { color: #ff79b8 !important; font-weight: 800 !important; }
+</style>
+
 </body>
 </html>
